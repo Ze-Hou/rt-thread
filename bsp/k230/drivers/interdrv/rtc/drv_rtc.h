@@ -152,10 +152,10 @@ typedef enum _rtc_tick_interrupt_mode_e
     RTC_INT_TICK_S64,
 } rtc_interrupt_mode_t;
 
-struct kd_alarm_setup
+typedef struct _rtc_alarm_setup
 {
     rt_uint32_t flag;               /* alarm flag */
     struct tm tm;                   /* when will the alarm wake up user */
-};
+} rtc_alarm_setup_t;
 
 #endif /* __DRV_RTC_H__ */

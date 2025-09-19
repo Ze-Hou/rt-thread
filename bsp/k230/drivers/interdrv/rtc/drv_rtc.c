@@ -63,8 +63,8 @@ static void pmu_isolation_rtc(void)
 
     /* disable pmu isolation */
     data = *addr;
-    data &= ~0x20; 
-    *addr = data;   
+    data &= ~0x20;
+    *addr = data;
     rt_iounmap(reg_pmu_pwr);
 
     /* map pmu base address */
@@ -249,7 +249,7 @@ static void rtc_date_time_set(struct k230_rtc_dev *dev, int year, int month, int
     }
 
     rtc->int_ctrl.timer_w_en = 1;
-    
+
     date.year_h = year_h;
     date.year_l = year_l;
     date.month = month;
@@ -273,7 +273,7 @@ static void rtc_timer_get(struct k230_rtc_dev *dev, time_t *t)
     {
         rtc->int_ctrl.timer_r_en = 1;
     }
-    
+
     tm.tm_sec = rtc->time.second;
     tm.tm_min = rtc->time.minute;
     tm.tm_hour = rtc->time.hour;
@@ -289,7 +289,7 @@ static void rtc_timer_set(struct k230_rtc_dev *dev, time_t *t)
 {
     struct tm p_tm;
     gmtime_r(t, &p_tm);
-    
+
     rtc_date_time_set(dev, (p_tm.tm_year + 1900), p_tm.tm_mon + 1, p_tm.tm_mday, \
                       p_tm.tm_hour, p_tm.tm_min, p_tm.tm_sec, p_tm.tm_wday);
 
@@ -302,7 +302,7 @@ static void rtc_alarm_get(struct k230_rtc_dev *dev, void *args)
     volatile rtc_t *rtc = (rtc_t *)dev->base;
     rtc_alarm_date_t alarm_date = rtc->alarm_date;
     rtc_alarm_time_t alarm_time = rtc->alarm_time;
-    
+
     tm->tm_year = (alarm_date.alarm_year_h * 100 + alarm_date.alarm_year_l) -1900;
     tm->tm_mon = alarm_date.alarm_month - 1;
     tm->tm_mday = alarm_date.alarm_day;
@@ -313,16 +313,21 @@ static void rtc_alarm_get(struct k230_rtc_dev *dev, void *args)
 
 static void rtc_alarm_set(struct k230_rtc_dev *dev, void *args)
 {
-    struct kd_alarm_setup *setup = (struct kd_alarm_setup*)args;
+    rtc_alarm_setup_t *setup = (rtc_alarm_setup_t *)args;
     struct tm tm = setup->tm;
+    time_t t;
+    struct tm p_tm;
     volatile rtc_t *rtc = (rtc_t *)dev->base;
     rtc_alarm_time_t alarm_time;
     rtc_alarm_date_t alarm_date;
     rtc_date_t date = rtc->date;
+    int year, year_l, year_h, val;
 
-    int year = tm.tm_year + 1900;
-    int val = year % 100;
-    int year_l,year_h;
+    t = mktime(&tm);
+    gmtime_r(&t, &p_tm);
+
+    year = p_tm.tm_year + 1900;
+    val = year % 100;
 
     if(val == 0)
     {
@@ -337,11 +342,11 @@ static void rtc_alarm_set(struct k230_rtc_dev *dev, void *args)
 
     alarm_date.alarm_year_h = year_h;
     alarm_date.alarm_year_l = year_l;
-    alarm_date.alarm_month = tm.tm_mon + 1;
-    alarm_date.alarm_day = tm.tm_mday;
-    alarm_time.alarm_hour = tm.tm_hour;
-    alarm_time.alarm_minute = tm.tm_min;
-    alarm_time.alarm_second = tm.tm_sec;
+    alarm_date.alarm_month = p_tm.tm_mon + 1;
+    alarm_date.alarm_day = p_tm.tm_mday;
+    alarm_time.alarm_hour = p_tm.tm_hour;
+    alarm_time.alarm_minute = p_tm.tm_min;
+    alarm_time.alarm_second = p_tm.tm_sec;
 
     rtc->alarm_date = alarm_date;
     rtc->alarm_time = alarm_time;
@@ -424,7 +429,7 @@ static rt_err_t rtc_device_control(rt_device_t dev, int cmd, void *args)
         rtc_dev->vector_callback = args;
         break;
     default:
-        return RT_EINVAL;
+        return -RT_EINVAL;
     }
     return RT_EOK;
 }
@@ -439,7 +444,7 @@ const static struct rt_device_ops rtc_ops =
     .control = rtc_device_control,
 };
 
-static struct k230_rtc_dev rtc_dev = 
+static struct k230_rtc_dev rtc_dev =
 {
     .name = "rtc",
     .base = RTC_BASE_ADDR,

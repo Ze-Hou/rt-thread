@@ -36,20 +36,29 @@
 #include <finsh.h>
 #include "drv_rtc.h"
 
-/* 
- * 测试RTC的时间功能与闹钟功能，在RTCd的寄存器中保存的时间信息
- * 是以UTC时间保存的，要使用本地时间需要配置时区，当前配置的时
+/*
+ * 测试 RTC 的时间功能与闹钟功能，在RTCd的寄存器中保存的时间信息
+ * 是以 UTC 时间保存的，要使用本地时间需要配置时区，当前配置的时
  * 区是东八区，即北京时间（CST）
- * 
- * 在设置时间日期时使用set_time()与set_date()接口，设置的时间
- * 这两个接口内部会做时区转换
+ *
+ * 在设置时间日期时使用 set_time() 与 set_date() 接口，设置的时
+ * 间这两个接口内部会做时区转换
  *
  * 测试说明：
- * 基于庐山派开发板测试
- * RTC为K230自带的RTC
- * RTC的时钟源为外部32.768KHz晶振
- * 在测试终端运行该测试后，会分别进行test_rtc_set(), 
- * test_rtc_alarm()与test_rtc_interface()三个测试
+ * 基于庐山派开发板测试（01Studio 的开发板无法使用硬件RTC，
+ * 因为没有接 int0/4 的上拉）
+ *  RTC 为 K230 自带的 RTC
+ * RTC 的时钟源为外部 32.768KHz 晶振
+ * 在测试终端运行该测试后，会分别进行 test_rtc_set(),
+ * test_rtc_alarm() 与 test_rtc_interface() 三个测试。
+ * 其中 test_rtc_set() 会通过 set_time() 与 set_date() 设置时间，
+ * 注意设置的时间需要为本地时间，内部会转换成 UTC 时间，然后调用
+ * drv_rtc.c 内的接口设置到 RTC 寄存器中；
+ * test_rtc_alarm() 会设置一个 5 秒后的闹钟时间，并注册一个闹钟
+ * 中断回调函数，同样用户设置的闹钟时间为本地时间，内部会转换成UTC
+ * 时间然后保存进 RTC 中；
+ * test_rtc_interface() 会测试读写 RTC 的接口，写 RTC 时同样需要
+ * 提供本地时间，读出来后需要转换成本地时间（如果有需要）。
  */
 
 #define RTC_NAME       "rtc"
@@ -95,7 +104,7 @@ static void test_rtc_alarm(void)
     struct tm p_tm;
     rt_device_t rtc_dev = RT_NULL;
     struct rt_alarm *alarm = RT_NULL;
-    struct kd_alarm_setup setup;
+    rtc_alarm_setup_t setup;
 
     LOG_I("rtc alarm test\n");
     rtc_dev = rt_device_find(RTC_NAME);
@@ -110,7 +119,7 @@ static void test_rtc_alarm(void)
     now = time(RT_NULL);
     LOG_I("%s\n", ctime(&now));
     now += 5; //alarm after 5s
-    gmtime_r(&now, &p_tm);
+    localtime_r(&now, &p_tm);
 
     setup.flag = RTC_INT_ALARM_MINUTE | RTC_INT_ALARM_SECOND;
     setup.tm.tm_year = p_tm.tm_year;
@@ -120,7 +129,7 @@ static void test_rtc_alarm(void)
     setup.tm.tm_hour = p_tm.tm_hour;
     setup.tm.tm_min = p_tm.tm_min;
     setup.tm.tm_sec = p_tm.tm_sec;
-    
+
     rt_device_control(rtc_dev, RT_DEVICE_CTRL_RTC_SET_CALLBACK, &test_rtc_alarm_callback); //set rtc intr callback
     rt_device_control(rtc_dev, RT_DEVICE_CTRL_RTC_SET_ALARM, &setup);   //set alarm time
     rt_memset(&p_tm, 0, sizeof(p_tm));
@@ -163,7 +172,7 @@ static void test_rtc_interface(void)
     tm.tm_sec = 59;
     rt_device_write(rtc_dev, RT_NULL, (void*)&tm, sizeof(tm));
     rt_thread_mdelay(500);
-    
+
     /* 设置完时间后打印10次时间 */
     for (i=0; i<10; i++)
     {
